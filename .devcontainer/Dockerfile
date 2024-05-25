@@ -35,3 +35,8 @@ RUN apt autoremove -y
 RUN apt clean
 
 USER $USERNAME
+
+# Allow container to stop. See: https://github.com/microsoft/vscode-remote-release/issues/3512#issuecomment-1267053890
+# NOTE: May affect benchmarking
+# NOTE: Long interval is necessary so container is not closed during vscode initialization
+CMD while sleep 120 && ps aux | egrep 'vscode.*[b]ootstrap-fork.*extensionHost.*' > /dev/null; do :; done
