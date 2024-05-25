@@ -77,3 +77,7 @@ This project leveraged the following sources:
 - [Setup a NVIDIA DevContainer with GPU Support for Tensorflow/Keras on Windows](https://alankrantas.medium.com/setup-a-nvidia-devcontainer-with-gpu-support-for-tensorflow-keras-on-windows-d00e6e204630)
 - [NVIDIA CUDA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
 - [profiling-cuda-in-torch](https://github.com/cuda-mode/profiling-cuda-in-torch)
+
+# Known Issues
+
+- Starting a personal `GitHub Codespaces` from this template fails while inspecting nvidia image from nvcr.
