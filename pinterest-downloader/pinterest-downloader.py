@@ -1196,7 +1196,6 @@ def fetch_imgs(board, uname, board_slug, section_slug, is_main_board
     , arg_dir, arg_thread_max
     , IMGS_SESSION, IMG_SESSION, V_SESSION, PIN_SESSION, proxies
     , cookie_file, arg_cut, arg_el, fs_f_max):
-    
     bookmark = None
     images = []
 
@@ -1254,13 +1253,14 @@ Please ensure your username/boardname/[section] or link has media item.\n') )
         # , but overcomplicated and in reality who want to cut dir?
         # ... Normally only want cut filename bcoz of included title/description )
         save_dir = os.path.join( arg_dir,  get_max_path(-1, fs_d_max, sanitize(uname), None)
-            , get_max_path(-1, fs_d_max, sanitize(board_name_folder + timestamp_d), None)
+            , get_max_path(-1, fs_d_max, sanitize(board_slug + timestamp_d), None)
             , get_max_path(-1, fs_d_max, sanitize(section_folder), None) )
         # Impossible is_main_board here
         url = '/' + '/'.join((uname, board_slug, section_slug)) + '/'
     else:
+        # import pdb; pdb.set_trace()
         save_dir = os.path.join( arg_dir,  get_max_path(-1, fs_d_max, sanitize(uname), None)
-            , get_max_path(-1, fs_d_max, sanitize(board_name_folder + timestamp_d), None))
+            , get_max_path(-1, fs_d_max, sanitize(board_slug + timestamp_d), None))
         # If boardname in url is lowercase but title startswith ' which quotes to %22 and cause err
         #... So don't use board_name_folder as board_name in url below to call API
         if is_main_board:
@@ -1442,9 +1442,9 @@ Please ensure your username/boardname/[section] or link has media item.\n') )
     #for img in images:
     #    print(img['id'])
 
-    create_dir(save_dir)
-    got_img = write_log(arg_timestamp_log, url_path, shortform, arg_img_only, arg_v_only, save_dir, images, None, arg_cut, break_from_latest_pin)
-
+    # create_dir(save_dir)
+    # got_img = write_log(arg_timestamp_log, url_path, shortform, arg_img_only, arg_v_only, save_dir, images, None, arg_cut, break_from_latest_pin)
+    got_img = True
     if got_img:
         # Always got extra index is not media, so -1 # [UPDATE] single video board might a media
         # Didn't bring loop above detect early
@@ -1468,7 +1468,18 @@ Please ensure your username/boardname/[section] or link has media item.\n') )
 
     if arg_thread_max < 1:
         arg_thread_max = None # Use default: "number of processors on the machine, multiplied by 5"
-
+    # import pdb; pdb.set_trace()
+    def get_orig_url(i):
+        try:
+            return i['images']['orig']['url']
+        except:
+            return None
+    all_images_urls = [
+        get_orig_url(i) for i in images
+    ]
+    all_images_urls = [i for i in all_images_urls if i is not None]
+    # print(all_images_urls)
+    return all_images_urls
     with ThreadPoolExecutor(max_workers = arg_thread_max) as executor:
 
         # Create threads
@@ -1588,7 +1599,7 @@ def run_library_main(arg_path :str, arg_dir :str, arg_thread_max :int, arg_cut :
     , arg_force :bool, arg_exclude_section :bool, arg_rescrape :bool
     , arg_img_only :bool, arg_v_only :bool, arg_update_all :bool
     , arg_https_proxy :str, arg_http_proxy :str, arg_cookies :str):
-
+    # import pdb; pdb.set_trace()
     # Not feasible update based on latest pin if v/img only
     # , unless download zero size img if video only(vice-versa) which seems not desired.
     if arg_img_only or arg_v_only: 
@@ -1632,7 +1643,7 @@ def run_library_main(arg_path :str, arg_dir :str, arg_thread_max :int, arg_cut :
         return quit('{} {} {}'.format('\n[' + x_tag + '] Neither username/boardname nor valid link: ', arg_path, '\n') )
     elif len(slash_path) > 3:
         return quit('[!] Something wrong with Pinterest URL. Please report this issue at https://github.com/limkokhole/pinterest-downloader/issues , thanks.') 
-
+    assert len(slash_path) == 2
     fs_f_max = None
     if IS_WIN:
         #if arg_extended_len >= 0:
@@ -1709,34 +1720,88 @@ def run_library_main(arg_path :str, arg_dir :str, arg_thread_max :int, arg_cut :
         print('[i] Job is download single board by username/boardname: {}'.format(board_path))
         if slash_path[-2] in ('search', 'categories', 'topics'):
             return quit('{}'.format('\n[' + x_tag + '] Search, Categories and Topics not supported.\n') )
-        board, sections = get_board_info(board_path, arg_exclude_section, None, None, proxies, cookies)
+        # board, sections = get_board_info(board_path, arg_exclude_section, None, None, proxies, cookies)
+        # try: 
+        #     boards = fetch_boards( slash_path[-1], proxies, cookies)
+        #     board = 
+        #     PIN_SESSION = get_session(0, proxies, cookies)
+        #     IMGS_SESSION = get_session(2, proxies, cookies)
+        #     IMG_SESSION = get_session(3, proxies, cookies)
+        #     V_SESSION = get_session(4, proxies, cookies)
+        #     fetch_imgs( board, slash_path[-2], slash_path[-1], None, False
+        #         , arg_board_timestamp, arg_log_timestamp, url_path
+        #         , arg_force, arg_rescrape, arg_img_only, arg_v_only
+        #         , arg_dir, arg_thread_max
+        #         , IMGS_SESSION, IMG_SESSION, V_SESSION, PIN_SESSION, proxies
+        #         , cookies, arg_cut, arg_el, fs_f_max )
+        #     if (not arg_exclude_section) and sections:
+        #         sec_c = len(sections)
+        #         print('[i] Trying to get ' + str(sec_c) + ' section{}'.format('s' if sec_c > 1 else ''))
+        #         for sec in sections:
+        #             sec_path = board_path + '/' + sec['slug']
+        #             board = get_board_info(sec_path, False, sec['slug'], board_path, proxies, cookies) # False not using bcoz sections not [] already
+        #             fetch_imgs( board, slash_path[-2], slash_path[-1], sec['slug'], False
+        #                 , arg_board_timestamp, arg_log_timestamp, url_path
+        #                 , arg_force, arg_rescrape, arg_img_only, arg_v_only
+        #                 , arg_dir, arg_thread_max
+        #                 , IMGS_SESSION, IMG_SESSION, V_SESSION, PIN_SESSION, proxies
+        #                 , cookies, arg_cut, arg_el, fs_f_max )
+
+        # except KeyError:
+        #     return quit(traceback.format_exc())
+        # print('[i] Job is download all boards by username: {}'.format(slash_path[-1]))
+        # if slash_path[-1] in ('search', 'categories', 'topics'):
+        #     return quit('{}'.format('\n[' + x_tag + '] Search, Categories and Topics not supported.\n') )
         try: 
+            boards = fetch_boards(slash_path[-2], proxies, cookies)
+            boards = [i for i in boards if '/'.join(slash_path) in i['url']]
             PIN_SESSION = get_session(0, proxies, cookies)
             IMGS_SESSION = get_session(2, proxies, cookies)
             IMG_SESSION = get_session(3, proxies, cookies)
             V_SESSION = get_session(4, proxies, cookies)
-            fetch_imgs( board, slash_path[-2], slash_path[-1], None, False
-                , arg_board_timestamp, arg_log_timestamp, url_path
-                , arg_force, arg_rescrape, arg_img_only, arg_v_only
-                , arg_dir, arg_thread_max
-                , IMGS_SESSION, IMG_SESSION, V_SESSION, PIN_SESSION, proxies
-                , cookies, arg_cut, arg_el, fs_f_max )
-            if (not arg_exclude_section) and sections:
-                sec_c = len(sections)
-                print('[i] Trying to get ' + str(sec_c) + ' section{}'.format('s' if sec_c > 1 else ''))
-                for sec in sections:
-                    sec_path = board_path + '/' + sec['slug']
-                    board = get_board_info(sec_path, False, sec['slug'], board_path, proxies, cookies) # False not using bcoz sections not [] already
-                    fetch_imgs( board, slash_path[-2], slash_path[-1], sec['slug'], False
-                        , arg_board_timestamp, arg_log_timestamp, url_path
-                        , arg_force, arg_rescrape, arg_img_only, arg_v_only
-                        , arg_dir, arg_thread_max
-                        , IMGS_SESSION, IMG_SESSION, V_SESSION, PIN_SESSION, proxies
-                        , cookies, arg_cut, arg_el, fs_f_max )
+            # Multiple logs saved inside relevant board dir
+            for index, board in enumerate(boards):
+                if 'name' not in board:
+                    print('Skip no name')
+                    continue
+
+                #dj(board)
+                # E.g. /example/commodore-computers/ need trim to example/commodore-computers
+                board_path = board['url'].strip('/')
+                # fetch_imgs() should use url style `A-B`` instead of Title `A B``(board['name'])
+                #print(board_path)
+                if '/' in board_path:
+                    board_slug = board_path.split('/')[1]
+                    is_main_board = False
+                else: # username main board
+                    board_slug = board_path
+                    is_main_board = True
+                board['owner']['id'] = board['id'] # hole: [todo:0] remove this
+
+                return fetch_imgs( board, slash_path[-2], board_slug, None, is_main_board
+                    , arg_board_timestamp, arg_log_timestamp, url_path
+                    , arg_force, arg_rescrape, arg_img_only, arg_v_only
+                    , arg_dir, arg_thread_max
+                    , IMGS_SESSION, IMG_SESSION, V_SESSION, PIN_SESSION, proxies
+                    , cookies, arg_cut, arg_el, fs_f_max )
+                if (not arg_exclude_section) and (board['section_count'] > 0):
+                    sec_c = board['section_count']
+                    print('[i] Trying to get ' + str(sec_c) + ' section{}'.format('s' if sec_c > 1 else ''))
+                    # ags.es placeholder below always False bcoz above already check (not arg_exclude_section) 
+                    board, sections = get_board_info(board_path, False, None, None, proxies, cookies)
+                    for sec in sections:
+                        sec_path = board_path + '/' + sec['slug']
+                        board = get_board_info(sec_path, False, sec['slug'], board_path, proxies, cookies) 
+                        sec_uname, sec_bname = board_path.split('/')
+                        fetch_imgs( board, sec_uname, sec_bname, sec['slug'], False
+                            , arg_board_timestamp, arg_log_timestamp, url_path
+                            , arg_force, arg_rescrape, arg_img_only, arg_v_only
+                            , arg_dir, arg_thread_max
+                            , IMGS_SESSION, IMG_SESSION, V_SESSION, PIN_SESSION, proxies
+                            , cookies, arg_cut, arg_el, fs_f_max )
 
         except KeyError:
             return quit(traceback.format_exc())
-
     elif len(slash_path) == 1:
         print('[i] Job is download all boards by username: {}'.format(slash_path[-1]))
         if slash_path[-1] in ('search', 'categories', 'topics'):
