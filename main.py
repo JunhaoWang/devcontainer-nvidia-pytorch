@@ -27,6 +27,7 @@ PINTEREST_DOWNLOADER_PATH = './pinterest-downloader/pinterest-downloader.py'
 DEFAULT_SAMPLE_SIZE = 5
 DEFAULT_MAX_CALLS = 5
 OUTPUT_FILE = "products.jsonl"
+OUTPUT_FILE_EXTRACTION = "extraction.jsonl"
 SEARCH_SUFFIX =  '"price" "add to cart" "reviews" -"oops" -404 -"Page Not Found" -"Results" -"Sort By" site:.com OR site:.ca OR site:.co.uk' # get pdp
 
 # Initialize OpenAI client
@@ -130,7 +131,7 @@ async def fetch_html(session, url):
             else:
                 return None, url
     except Exception as e:
-        print(f"Failed to fetch URL {url}: {e}")
+        logging.error(f"Failed to fetch URL {url}: {e}")
         return None, url
 
 # Clean HTML content
@@ -172,22 +173,32 @@ class HtmlExtraction(BaseModel):
     fail_reason: str = None
 
 # Extract product details from HTML using OpenAI
-async def extract_product_details(html_content: str, url: str):
+async def extract_product_details(html_content: str, url: str, max_tokens: int = 128000):
     system_prompt = (
         "You are an expert in extracting structured e-commerce data. "
         "You will be provided with HTML text from an e-commerce website. "
         "Your task is to parse the HTML and extract details such as product name, price, image, and other specifications "
         "into a predefined structure."
     )
-    completion = await asyncio.to_thread(
-        client.beta.chat.completions.parse,
-        model="gpt-4o-2024-08-06",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": html_content}
-        ],
-        response_format=HtmlExtraction
-    )
+    html_content = html_content[:max_tokens]
+    try:
+        completion = await asyncio.to_thread(
+            client.beta.chat.completions.parse,
+            model="gpt-4o-2024-08-06",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": html_content}
+            ],
+            response_format=HtmlExtraction
+        )
+        extraction_result = completion.choices[0].message.parsed
+        extraction_result.url = url
+        if extraction_result.status == ExtractionStatus.SUCCESS:
+            extraction_result.product.product_url = url
+        return extraction_result
+    except Exception as e:
+        logging.error(f"Failed to extract product details from URL {url}: {e}")
+        return HtmlExtraction(status=ExtractionStatus.FAIL, fail_reason=str(e))
     extraction_result = completion.choices[0].message.parsed
     if extraction_result.status == ExtractionStatus.SUCCESS:
         extraction_result.product.product_url = url
@@ -236,15 +247,23 @@ async def main():
         
         logging.info("Extracting product details from HTML content...")
         extraction_tasks = [extract_product_details(html, url) for html, url in clean_html_results]
-        extraction_results = await tqdm_asyncio.gather(*extraction_tasks, desc='Extracting product details from HTML content', total=len(clean_html_results))
+        extraction_results = await tqdm_asyncio.gather(*extraction_tasks, desc='Extracting product details from HTML content', total=len(clean_html_results), return_exceptions=True)
+        extractions = [result for result in extraction_results if isinstance(result, HtmlExtraction)]
+        logging.info(f"Created {len(extractions)} extractions.")
+
+        # Save extractions to a JSONL file
+        with open(OUTPUT_FILE_EXTRACTION, 'w') as f:
+            for extraction in extractions:
+                f.write(extraction.model_dump_json() + "\n")
+        logging.info(f"Saved extraction details to {OUTPUT_FILE_EXTRACTION}")
         
-        products = [result.product for result in extraction_results if result.status == ExtractionStatus.SUCCESS]
+        products = [result.product for result in extraction_results if isinstance(result, HtmlExtraction) and result.status == ExtractionStatus.SUCCESS]
         logging.info(f"Extracted {len(products)} products.")
 
         # Save products to a JSONL file
         with open(OUTPUT_FILE, 'w') as f:
             for product in products:
-                f.write(json.dumps(product.dict()) + "\n")
+                f.write(product.model_dump_json() + "\n")
         logging.info(f"Saved product details to {OUTPUT_FILE}")
 
 if __name__ == "__main__":
