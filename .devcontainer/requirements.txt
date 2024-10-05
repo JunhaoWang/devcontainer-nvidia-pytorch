@@ -6,3 +6,5 @@ requests
 termcolor
 pysocks
 fake-useragent
+openai
+MechanicalSoup
