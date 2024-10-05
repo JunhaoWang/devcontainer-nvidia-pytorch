@@ -166,12 +166,13 @@ class ProductExtraction(BaseModel):
     image_url: str
     category: str
     color: str = None
-    product_url: str
+    product_url: str = None
 
 class HtmlExtraction(BaseModel):
     status: ExtractionStatus
     product: Union[ProductExtraction, None] = None
     fail_reason: str = None
+    url: str = None
 
 # Extract product details from HTML using OpenAI
 async def extract_product_details(html_content: str, url: str, max_tokens: int = 128000):
@@ -194,16 +195,11 @@ async def extract_product_details(html_content: str, url: str, max_tokens: int =
         )
         extraction_result = completion.choices[0].message.parsed
         extraction_result.url = url
-        if extraction_result.status == ExtractionStatus.SUCCESS:
-            extraction_result.product.product_url = url
+        extraction_result.product.product_url = url
         return extraction_result
     except Exception as e:
         logging.error(f"Failed to extract product details from URL {url}: {e}")
         return HtmlExtraction(status=ExtractionStatus.FAIL, fail_reason=str(e))
-    extraction_result = completion.choices[0].message.parsed
-    if extraction_result.status == ExtractionStatus.SUCCESS:
-        extraction_result.product.product_url = url
-    return extraction_result
 
 # Main function to execute the workflow
 async def main():
