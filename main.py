@@ -27,6 +27,7 @@ PINTEREST_DOWNLOADER_PATH = './pinterest-downloader/pinterest-downloader.py'
 DEFAULT_SAMPLE_SIZE = 5
 DEFAULT_MAX_CALLS = 5
 OUTPUT_FILE = "products.jsonl"
+SEARCH_SUFFIX =  '"price" "add to cart" -"oops" -404 -"Page Not Found" -results' # get pdp
 
 # Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -104,7 +105,7 @@ async def generate_search_queries(image_urls: List[str], sample_size: int = DEFA
     ))
 
 # Perform Google search for products
-async def google_search(queries: List[str], suffix='"price" "add to cart"'):
+async def google_search(queries: List[str], suffix=SEARCH_SUFFIX):
     target_urls = []
     for query in queries:
         browser = mechanicalsoup.StatefulBrowser()
