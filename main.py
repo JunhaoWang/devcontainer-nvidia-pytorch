@@ -1,4 +1,7 @@
 import importlib.util
+import logging
+from tqdm.asyncio import tqdm_asyncio
+from tqdm import tqdm
 import sys
 import json
 import re
@@ -15,6 +18,9 @@ from urllib.parse import urlparse
 import re
 import argparse
 import random
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Global Variables
 OPENAI_API_KEY = json.load(open('secrets.json', 'r'))['OPENAI_KEY']
@@ -93,19 +99,20 @@ async def generate_search_queries(image_urls: List[str], sample_size: int = DEFA
             response_format=SearchQueryGeneration
         ))
 
-    results = await asyncio.gather(*tasks)
+    results = await tqdm_asyncio.gather(*tasks, desc='Generating search queries', total=calls)
     search_queries = [result.choices[0].message.parsed.final_answer for result in results]
-    return list(set([query for sublist in search_queries for query in sublist]))
+    return list(set(
+        [query for sublist in search_queries for query in sublist]
+    ))
 
 # Perform Google search for products
-async def google_search(queries: List[str]):
+async def google_search(queries: List[str], suffix='"price" "add to cart"'):
     target_urls = []
-    tasks = []
     for query in queries:
         browser = mechanicalsoup.StatefulBrowser()
         browser.open("https://www.google.com/")
         browser.select_form('form[action="/search"]')
-        browser["q"] = f'{query} "price" "add to cart"'
+        browser["q"] = f'{query} {suffix}'
         browser.submit_selected(btnName="btnG")
         for link in browser.links():
             target = link.attrs['href']
@@ -199,42 +206,45 @@ async def main():
         args.pinterest_url = input("Please enter the Pinterest moodboard URL: ")
 
     pinterest_url = args.pinterest_url
-    print(f"Parsing board name from URL: {pinterest_url}")
+    logging.info(f"Parsing board name from URL: {pinterest_url}")
     board_name = parse_board_name(pinterest_url)
-    print(f"Board name extracted: {board_name}")
+    logging.info(f"Board name extracted: {board_name}")
 
-    print("Fetching image URLs from the Pinterest board...")
+    logging.info("Fetching image URLs from the Pinterest board...")
     image_urls = get_image_urls(board_name)
-    print(f"Fetched {len(image_urls)} image URLs.")
+    logging.info(f"Fetched {len(image_urls)} image URLs.")
 
-    print("Generating search queries from moodboard images...")
+    logging.info("Generating search queries from moodboard images...")
     queries = await generate_search_queries(image_urls, sample_size=args.sample_size, max_calls=args.max_calls)
-    print(f"Generated {len(queries)} search queries.")
+    logging.info(f"Generated {len(queries)} search queries.")
+    logging.info(f"Search Queries: {queries}")
+    queries = queries[:5] # DEBUG
 
-    print("Performing Google search for products...")
-    target_urls = await google_search(queries)
-    target_urls = target_urls[:1] # debug
-    print(f"Found {len(target_urls)} unique product URLs.")
-
+    logging.info("Performing Google search for products...")
+    target_urls = await tqdm_asyncio.gather(*[google_search([query]) for query in queries], desc='Performing Google search for products', total=len(queries))
+    target_urls = list(set([url for sublist in target_urls for url in sublist]))
+    logging.info(f"Found {len(target_urls)} unique product URLs.")
+    logging.info(f"Product URLs: {target_urls}")
+    target_urls = target_urls[:5] # DEBUG
     async with aiohttp.ClientSession() as session:
-        print("Fetching HTML content from product URLs...")
+        logging.info("Fetching HTML content from product URLs...")
         html_tasks = [fetch_html(session, url) for url in target_urls]
-        html_results = await asyncio.gather(*html_tasks)
+        html_results = await tqdm_asyncio.gather(*html_tasks, desc='Fetching HTML content from product URLs', total=len(target_urls))
         
         clean_html_results = [(clean_html(html), url) for html, url in html_results if html is not None]
         
-        print("Extracting product details from HTML content...")
+        logging.info("Extracting product details from HTML content...")
         extraction_tasks = [extract_product_details(html, url) for html, url in clean_html_results]
-        extraction_results = await asyncio.gather(*extraction_tasks)
+        extraction_results = await tqdm_asyncio.gather(*extraction_tasks, desc='Extracting product details from HTML content', total=len(clean_html_results))
         
         products = [result.product for result in extraction_results if result.status == ExtractionStatus.SUCCESS]
-        print(f"Extracted {len(products)} products.")
+        logging.info(f"Extracted {len(products)} products.")
 
         # Save products to a JSONL file
         with open(OUTPUT_FILE, 'w') as f:
             for product in products:
                 f.write(json.dumps(product.dict()) + "\n")
-        print(f"Saved product details to {OUTPUT_FILE}")
+        logging.info(f"Saved product details to {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     asyncio.run(main())
