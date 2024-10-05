@@ -27,7 +27,7 @@ PINTEREST_DOWNLOADER_PATH = './pinterest-downloader/pinterest-downloader.py'
 DEFAULT_SAMPLE_SIZE = 5
 DEFAULT_MAX_CALLS = 5
 OUTPUT_FILE = "products.jsonl"
-SEARCH_SUFFIX =  '"price" "add to cart" -"oops" -404 -"Page Not Found" -results' # get pdp
+SEARCH_SUFFIX =  '"price" "add to cart" "reviews" -"oops" -404 -"Page Not Found" -"Results" -"Sort By" site:.com OR site:.ca OR site:.co.uk' # get pdp
 
 # Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
