@@ -1,11 +1,9 @@
 import importlib.util
 import logging
 from tqdm.asyncio import tqdm_asyncio
-from tqdm import tqdm
 import sys
 import json
 import re
-import requests
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
