@@ -7,7 +7,7 @@ import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
-from openai import AsyncOpenAI
+from openai import OpenAI
 from typing import Union, List
 from enum import Enum
 import mechanicalsoup
@@ -25,7 +25,7 @@ DEFAULT_MAX_CALLS = 5
 OUTPUT_FILE = "products.jsonl"
 
 # Initialize OpenAI client
-client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Parse Pinterest board URL to extract board name
 def parse_board_name(url: str) -> str:
@@ -69,34 +69,33 @@ async def generate_search_queries(image_urls: List[str], sample_size: int = DEFA
 
     for i in range(calls):
         sampled_urls = random.sample(image_urls, min(sample_size, len(image_urls)))
-        tasks.append(
-            client.chat.completions.parse(
-                model="gpt-4o-2024-08-06",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a shopping assistant. Based on the mood board images provided, "
-                            "generate a list of search queries to help the user find similar products. "
-                            "Explain your reasoning step by step."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "Based on these images, what search queries should I use to find similar products?"},
-                        ] + [
-                            {"type": "image_url", "image_url": {"url": i}} for i in sampled_urls
-                        ],
-                    },
-                ],
-                response_format=SearchQueryGeneration,
-            )
-        )
+        tasks.append(asyncio.to_thread(
+            client.beta.chat.completions.parse,
+            model="gpt-4o-2024-08-06",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a shopping assistant. Based on the mood board images provided, "
+                        "generate a list of search queries to help the user find similar products. "
+                        "Explain your reasoning step by step."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Based on these images, what search queries should I use to find similar products?"},
+                    ] + [
+                        {"type": "image_url", "image_url": {"url": i}} for i in sampled_urls
+                    ],
+                },
+            ],
+            response_format=SearchQueryGeneration
+        ))
 
     results = await asyncio.gather(*tasks)
     search_queries = [result.choices[0].message.parsed.final_answer for result in results]
-    return [query for sublist in search_queries for query in sublist]
+    return list(set([query for sublist in search_queries for query in sublist]))
 
 # Perform Google search for products
 async def google_search(queries: List[str]):
@@ -174,13 +173,14 @@ async def extract_product_details(html_content: str, url: str):
         "Your task is to parse the HTML and extract details such as product name, price, image, and other specifications "
         "into a predefined structure."
     )
-    completion = await client.chat.completions.parse(
+    completion = await asyncio.to_thread(
+        client.beta.chat.completions.parse,
         model="gpt-4o-2024-08-06",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": html_content}
         ],
-        response_format=HtmlExtraction,
+        response_format=HtmlExtraction
     )
     extraction_result = completion.choices[0].message.parsed
     if extraction_result.status == ExtractionStatus.SUCCESS:
@@ -213,6 +213,7 @@ async def main():
 
     print("Performing Google search for products...")
     target_urls = await google_search(queries)
+    target_urls = target_urls[:1] # debug
     print(f"Found {len(target_urls)} unique product URLs.")
 
     async with aiohttp.ClientSession() as session:
