@@ -28,7 +28,8 @@ DEFAULT_SAMPLE_SIZE = 5
 DEFAULT_MAX_CALLS = 5
 OUTPUT_FILE = "products.jsonl"
 OUTPUT_FILE_EXTRACTION = "extraction.jsonl"
-SEARCH_SUFFIX =  '"price" "add to cart" "reviews" -"oops" -404 -"Page Not Found" -"Results" -"Sort By" site:.com OR site:.ca OR site:.co.uk' # get pdp
+SEARCH_SUFFIX = '(?i)"price" "add to cart" "reviews" -"oops" -400 -401 -402 -403 -404 -500 -501 -502 -503 -"Page Not Found" -"Results" -"Sort By" site:.com OR site:.ca OR site:.co.uk'
+
 
 # Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -247,7 +248,7 @@ async def main():
         
         logging.info("Extracting product details from HTML content...")
         extraction_tasks = [extract_product_details(html, url) for html, url in clean_html_results]
-        extraction_results = await tqdm_asyncio.gather(*extraction_tasks, desc='Extracting product details from HTML content', total=len(clean_html_results), return_exceptions=True)
+        extraction_results = await tqdm_asyncio.gather(*extraction_tasks, desc='Extracting product details from HTML content', total=len(clean_html_results))
         extractions = [result for result in extraction_results if isinstance(result, HtmlExtraction)]
         logging.info(f"Created {len(extractions)} extractions.")
 
@@ -257,7 +258,8 @@ async def main():
                 f.write(extraction.model_dump_json() + "\n")
         logging.info(f"Saved extraction details to {OUTPUT_FILE_EXTRACTION}")
         
-        products = [result.product for result in extraction_results if isinstance(result, HtmlExtraction) and result.status == ExtractionStatus.SUCCESS]
+        products = [result.product for result in extraction_results if isinstance(result, HtmlExtraction) 
+            and result.status == ExtractionStatus.SUCCESS and result.product is not None]
         logging.info(f"Extracted {len(products)} products.")
 
         # Save products to a JSONL file
