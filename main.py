@@ -217,14 +217,16 @@ async def main():
     queries = await generate_search_queries(image_urls, sample_size=args.sample_size, max_calls=args.max_calls)
     logging.info(f"Generated {len(queries)} search queries.")
     logging.info(f"Search Queries: {queries}")
-    queries = queries[:5] # DEBUG
+    queries = random.sample(queries, min(5, len(queries))) # DEBUG
+    print(queries)
 
     logging.info("Performing Google search for products...")
     target_urls = await tqdm_asyncio.gather(*[google_search([query]) for query in queries], desc='Performing Google search for products', total=len(queries))
     target_urls = list(set([url for sublist in target_urls for url in sublist]))
     logging.info(f"Found {len(target_urls)} unique product URLs.")
     logging.info(f"Product URLs: {target_urls}")
-    target_urls = target_urls[:5] # DEBUG
+    target_urls = random.sample(target_urls, min(15, len(target_urls))) # DEBUG
+    print(target_urls)
     async with aiohttp.ClientSession() as session:
         logging.info("Fetching HTML content from product URLs...")
         html_tasks = [fetch_html(session, url) for url in target_urls]
